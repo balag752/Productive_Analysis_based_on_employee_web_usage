@@ -1,0 +1,195 @@
+---
+title: "URL Learning"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+require(ggplot2)
+
+require(dplyr)
+
+require(e1071)
+
+require(RTextTools)
+
+require(tm) # Text mining: Corpus and Document Term Matrix
+
+require(class) # KNN model
+
+require(SnowballC) # Stemming words
+
+require(ElemStatLearn)
+
+```
+
+## Including Plots
+
+```{r pressure, echo=FALSE}
+
+setwd("E:/Techi/Data Science/ML/Project_2_URL_Analysis")
+
+Source_File<-read.csv("Sentence.txt",header = FALSE)
+Test_File<-read.csv("ALL_Sentence.txt",header = FALSE)
+
+```
+
+
+```{r Cleanse Part}
+
+names(Source_File)=c("EmpName","Sentence","Hits","Category")
+names(Test_File)=c("EmpName","Sentence","Hits","Category")
+Test_File=subset(Test_File,Category!="Undefined")
+#table(Source_File$Category)
+
+#Source_File$id=1:length(Source_File$EmpName)
+
+#Source_File=subset(Source_File,Category!="SUBJECTIVE")
+
+#Test_data=subset(Source_File[c("Sentence","Category")],Source_File$id>200)
+
+```
+
+
+```{r = Creating Model with Naive Bayes}
+
+
+#Train_matrix=create_matrix(Train_data[,1], language="english",removeStopwords=FALSE, removeNumbers=TRUE,stemWords=FALSE) 
+
+Train_matrix=dtm
+
+Train_mat = as.matrix(Train_matrix);
+
+#table(Train_data$Category)
+
+classifier = naiveBayes(Train_mat, as.factor(Train_data[,2]));
+
+predicted = predict(classifier, Train_data); 
+
+table(Train_data[,2], predicted)
+
+recall_accuracy(Train_data[, 2], predicted)
+  
+```
+
+
+```{r = Testing Model with Naive Bayes}
+
+
+test_matrix=create_matrix(Test_data[,1], language="english",removeStopwords=FALSE, removeNumbers=TRUE,stemWords=FALSE) 
+
+test_mat = as.matrix(test_matrix)
+
+#classifier = naiveBayes(mat, as.factor(Test_data[,2]) )
+
+predicted = predict(classifier, Test_data); 
+
+table(Test_data[, 2], predicted)
+
+recall_accuracy(Test_data[, 2], predicted)
+  
+```
+
+
+
+```{r = Creating Model with KNN }
+
+names(Test_File)=c("EmpName","Sentence","Hits","Category")
+# Create corpus
+docs <- Corpus(VectorSource(Test_File$Sentence))
+
+
+# Clean corpus
+docs <- tm_map(docs, content_transformer(tolower))
+docs <- tm_map(docs, removeNumbers)
+docs <- tm_map(docs, removeWords, stopwords("english"))
+docs <- tm_map(docs, removePunctuation)
+docs <- tm_map(docs, stripWhitespace)
+docs <- tm_map(docs, stemDocument, language = "english")
+
+
+# Create dtm
+dtm <- DocumentTermMatrix(docs)
+
+# Transform dtm to matrix to data frame - df is easier to work with
+mat.df <- as.data.frame(data.matrix(dtm), stringsAsfactors = FALSE)
+
+# Column bind category (known classification)
+mat.df <- cbind(mat.df, Test_File$Category)
+mat.df <- cbind(mat.df, Test_File$EmpName)
+mat.df <- cbind(mat.df, Test_File$Sentence)
+
+
+
+# Change name of new column to "category"
+colnames(mat.df)[ncol(mat.df)-2] <- "category"
+colnames(mat.df)[ncol(mat.df)-1] <- "EmpName"
+colnames(mat.df)[ncol(mat.df)] <- "Sentence"
+
+
+# Isolate classifier
+cl <- mat.df[, "category"]
+sl <- mat.df[, "Sentence"]
+
+# Create model data and remove "category"
+modeldata <- mat.df[,!colnames(mat.df) %in% "category"]
+modeldata <- modeldata[,!colnames(modeldata) %in% "EmpName"]
+modeldata <- modeldata[,!colnames(modeldata) %in% "Sentence"]
+
+
+# Split data by rownumber into two equal portions
+train <- which(mat.df$EmpName!="SOUNDER")
+#train <- sample(nrow(mat.df), ceiling(nrow(mat.df) * .70))
+test <- (1:nrow(mat.df))[- train]
+
+# Create model: training set, test set, training set classifier
+knn.pred <- knn(modeldata[train, ], modeldata[test, ], cl[train],k=1)
+
+# Confusion matrix
+conf.mat <- table("Predictions" = knn.pred, Actual = cl[test]);conf.mat
+
+# Accuracy
+(accuracy <- sum(diag(conf.mat))/length(test) * 100)
+
+subset(paste(sl[test]," , ",cl[test], ", ",knn.pred),cl[test]!=knn.pred & cl[test]=="Techinical")
+
+subset(table(mat.df$Sentence,mat.df$category),mat.df$unstructur==1) 
+
+```
+
+
+
+
+
+```{r = Visualizing knn  result}
+
+#plot(modeldata[test[1:10], ], col = as.numeric(knn.pred[1:10]), pch = as.numeric(knn.pred[1:10])) 
+
+plot(knn.pred,cl[test])
+
+prob <- attr(knn.pred, "prob")
+
+x <- mixture.example$x
+g <- mixture.example$y
+xnew <- mixture.example$xnew
+mod15 <- knn(x, xnew, g, k=15, prob=TRUE)
+prob <- attr(mod15, "prob")
+prob <- ifelse(mod15=="1", prob, 1-prob)
+px1 <- mixture.example$px1
+px2 <- mixture.example$px2
+prob15 <- matrix(prob, length(px1), length(px2))
+par(mar=rep(2,4))
+contour(px1, px2, prob15, levels=0.5, labels="", xlab="", ylab="", main=
+        "15-nearest neighbour", axes=FALSE)
+points(x, col=ifelse(g==1, "coral", "cornflowerblue"))
+gd <- expand.grid(x=px1, y=px2)
+points(gd, pch=".", cex=1.2, col=ifelse(prob15>0.5, "coral", "cornflowerblue"))
+box()
+
+
+
+
+
+```
