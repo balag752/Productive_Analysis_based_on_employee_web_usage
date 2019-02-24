@@ -1,0 +1,46 @@
+
+--Comment : One time run - So Commented. Creating & Using DB 
+
+--CREATE DATABASE URL;
+
+USE URL;
+
+--Comment : One time run - So Commented. Creating & Using Tables
+
+--create table URL_WORDS(id int, ipaddr string, URL string, Access timestamp,Bytes int, type int, keyword string) row format delimited fields terminated by ',' stored as textfile;
+--create table DOMAIN(id int, ipaddr string, URL string, Access timestamp, Bytes int, domain string) row format delimited fields terminated by ',' stored as textfile;
+--create table URL_SENTENCE(id int, ipaddr string, URL string, Access timestamp,Bytes int, word string) row format delimited fields terminated by ',' stored as textfile;
+--create table STOP(stop_words String) stored as textfile;
+--create table TIMESHEET(ipaddr string, Eid String,Name String) row format delimited fields terminated by ',' stored as textfile;
+
+--Comment : Truncating data 
+
+TRUNCATE TABLE URL_WORDS;
+TRUNCATE TABLE DOMAIN;
+TRUNCATE TABLE URL_SENTENCE;
+
+--Comment : Loading pig output file to hive
+
+LOAD DATA INPATH '/KEYWORDS/part-m-00000' into table URL_WORDS;
+LOAD DATA INPATH '/KEYWORDS/part-m-00001' into table URL_WORDS;
+LOAD DATA INPATH '/DOMAIN/part-m-00000' into table DOMAIN;
+LOAD DATA INPATH '/WORDS/part-m-00000' into table URL_SENTENCE;
+
+--Comment : One time run - So Commented. loading timesheet & Stop words
+
+--LOAD DATA INPATH 'CONFIRMED_DIM/terrier-stop.txt' into table STOP;
+--LOAD DATA INPATH 'CONFIRMED_DIM/Timesheet' into table TIMESHEET;
+
+--Comment : Reports. Currently not running throught script. But try it directly in Hive. it will work
+
+SELECT C.NAME,WORD, COUNT(*) AS HITS FROM URL_SENTENCE A JOIN TIMESHEET C ON A.IPADDR=C.IPADDR  GROUP BY C.NAME,WORD ORDER BY HITS DESC LIMIT 20;
+
+SELECT C.Name, UPPER(keyword), COUNT(*) AS HITS FROM URL_WORDS A
+LEFT JOIN STOP B ON UPPER(A.keyword)=UPPER(B.stop_words)
+JOIN TIMESHEET C ON A.ipaddr=C.ipaddr
+ WHERE TYPE=2 AND B.stop_words IS NULL GROUP BY C.NAME, UPPER(KEYWORD) ORDER BY HITS DESC LIMIT 10;
+
+SELECT C.Name, UPPER(domain), COUNT(*) AS HITS FROM DOMAIN A
+JOIN TIMESHEET C ON A.ipaddr=C.ipaddr
+ GROUP BY C.Name, UPPER(domain) ORDER BY HITS DESC LIMIT 25;
+
